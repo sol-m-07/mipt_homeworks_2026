@@ -238,8 +238,7 @@ def _print_expense_details(expenses: list[ExpenseRecord]) -> None:
     for category, value, *_ in expenses:
         totals[category] = totals.get(category, 0) + value
 
-    sorted_totals = sorted(totals.items())
-    for number, (category, total) in enumerate(sorted_totals, start=1):
+    for number, (category, total) in enumerate(sorted(totals.items()), start=1):
         print(f"{number}. {category}: {round(total)}")
 
 
