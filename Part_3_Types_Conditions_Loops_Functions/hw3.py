@@ -38,7 +38,7 @@ def is_leap_year(year: int) -> bool:
     return bool((year % 4 == 0 and year % 100 != 0) or year % 400 == 0)
 
 
-def earlier(date1: tuple, date2: tuple[int, int, int]) -> bool:
+def earlier(date1: tuple[int, int, int], date2: tuple[int, int, int]) -> bool:
     return bool(date1[2] < date2[2] or
                 (date1[2] == date2[2] and date1[1] < date2[1]) or
                 (date1[2] == date2[2] and date1[1] == date2[1] and date1[0] <= date2[0]))
@@ -50,7 +50,11 @@ def date_is_valid(date: list[str]) -> bool:
 
 def extract_date(maybe_dt: str) -> tuple[int, int, int] | None:
     split_dt = maybe_dt.split("-")
-    if len(split_dt) != DATE_SIZE or not(date_is_valid(split_dt)) or not(1 <= int(split_dt[1]) <= NUMBER_OF_MONTHS):
+    if (
+        len(split_dt) != DATE_SIZE
+        or not date_is_valid(split_dt)
+        or not (1 <= int(split_dt[1]) <= NUMBER_OF_MONTHS)
+    ):
         return None
 
     if int(split_dt[1]) == FEBRUARY and is_leap_year(int(split_dt[2])):
@@ -68,18 +72,17 @@ def extract_sum(maybe_sum: str) -> float | None:
         return None
 
     maybe_sum = maybe_sum.replace(",", ".")
-
     if maybe_sum[0] == "." or maybe_sum.count(".") > 1:
         return None
 
     if maybe_sum[0] == "-":
         for char in maybe_sum[1:]:
-            if not(char.isdigit() or char == "."):
+            if not (char.isdigit() or char == "."):
                 return None
         return float(maybe_sum)
 
     for char in maybe_sum:
-        if not(char.isdigit() or char == "."):
+        if not (char.isdigit() or char == "."):
             return None
     return float(maybe_sum)
 
@@ -122,7 +125,7 @@ def income_processing(command: list[str], incomes: IncomeHistory) -> None:
 
 
 def expense_processing(command: list[str], expenses: ExpenseHistory) -> None:
-    if len(command) != EXPENSE_SIZE or not(extract_category(command[0])):
+    if len(command) != EXPENSE_SIZE or not extract_category(command[0]):
         print(UNKNOWN_COMMAND_MSG)
         return
 
@@ -163,38 +166,50 @@ def stats_processing(command: list[str], incomes: IncomeHistory, expenses: Expen
     list_expense = [x for x in expenses if earlier(x[2:], date)]
 
     print(f"Ваша статистика по состоянию на {command[0]}:")
-    print(f"Суммарный капитал: {"{:.2f}".format(sum(x[0] for x in list_income) -
-                                                sum(x[1] for x in list_expense))} рублей")
+    total_capital = sum(x[0] for x in list_income) - sum(
+        x[1] for x in list_expense
+    )
+    print(f"Суммарный капитал: {total_capital:.2f} рублей")
 
     month_income = sum(x[0] for x in list_income if (x[2] == date[1]) and (x[3] == date[2]))
     list_month_expense = [x for x in list_expense if (x[3] == date[1]) and (x[4] == date[2])]
     month_expense = sum(x[1] for x in list_month_expense)
 
     if month_income >= month_expense:
-        print(f"В этом месяце прибыль составила {f"{month_income - month_expense:.2f}"} рублей")  # noqa: RUF001
+        print(
+            "В этом месяце прибыль составила "  # noqa: RUF001
+            f"{month_income - month_expense:.2f} рублей"
+        )
     else:
-        print(f"В этом месяце убыток составил {f"{month_expense - month_income:.2f}"} рублей")  # noqa: RUF001
+        print(
+            "В этом месяце убыток составил "  # noqa: RUF001
+            f"{month_expense - month_income:.2f} рублей"
+        )
 
-    print(f"Доходы: {f"{month_income:.2f}"} рублей")
-    print(f"Расходы: {f"{month_expense:.2f}"} рублей")
+    print(f"Доходы: {month_income:.2f} рублей")
+    print(f"Расходы: {month_expense:.2f} рублей")
     print()
     print("Детализация (категория: сумма):")
 
-    if len(list_month_expense) > 0:
+    if list_month_expense:
         list_month_expense.sort()
         current_category = list_month_expense[0][1]
         category_number = 1
-        for x in range(1, len(list_month_expense)):
-            if list_month_expense[x][0] == list_month_expense[x - 1][0]:
-                current_category += list_month_expense[x][1]
+        for index in range(1, len(list_month_expense)):
+            if list_month_expense[index][0] == list_month_expense[index - 1][0]:
+                current_category += list_month_expense[index][1]
             else:
-                print(f"{category_number}. {list_month_expense[x - 1][0]}: {round(current_category)}")
-                current_category = list_month_expense[x][1]
+                print(
+                    f"{category_number}. "
+                    f"{list_month_expense[index - 1][0]}: "
+                    f"{round(current_category)}"
+                )
+                current_category = list_month_expense[index][1]
                 category_number += 1
-        print(f"{category_number}. {list_month_expense[len(list_month_expense) - 1][0]}: {round(current_category)}")
+        last_category = list_month_expense[-1][0]
+        print(f"{category_number}. {last_category}: {round(current_category)}")
 
     return
-
 
 
 def process_line(line: str, incomes: IncomeHistory, expenses: ExpenseHistory) -> None:
@@ -218,9 +233,10 @@ def process_line(line: str, incomes: IncomeHistory, expenses: ExpenseHistory) ->
 
     print(UNKNOWN_COMMAND_MSG)
 
+
 def main() -> None:
-    incomes : IncomeHistory = []
-    expenses : ExpenseHistory = []
+    incomes: IncomeHistory = []
+    expenses: ExpenseHistory = []
 
     while True:
         line = input()
