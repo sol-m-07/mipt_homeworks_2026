@@ -238,8 +238,10 @@ def _print_expense_details(expenses: list[ExpenseRecord]) -> None:
     for category, value, *_ in expenses:
         totals[category] = totals.get(category, 0) + value
 
-    for number, (category, total) in enumerate(sorted(totals.items()), start=1):
+    number = 1
+    for category, total in sorted(totals.items()):
         print(f"{number}. {category}: {round(total)}")
+        number += 1
 
 
 def stats_processing(command: list[str], incomes: IncomeHistory, expenses: ExpenseHistory) -> None:
