@@ -87,10 +87,7 @@ def extract_sum(maybe_sum: str) -> float | None:
     if normalized[0] == "." or normalized.count(".") > 1:
         return None
 
-    if normalized[0] == "-":
-        digits_part = normalized[1:]
-    else:
-        digits_part = normalized
+    digits_part = normalized[1:] if normalized[0] == "-" else normalized
 
     if not digits_part:
         return None
@@ -106,9 +103,7 @@ def extract_category(maybe_category: str) -> bool:
     if len(category) != 1:
         return False
     name = category[0]
-    if "." in name or "," in name:
-        return False
-    return True
+    return not ("." in name or "," in name)
 
 
 def iter_input_lines() -> list[str]:
@@ -205,7 +200,7 @@ def _get_month_income(
 def _get_month_expenses(
     expenses: ExpenseHistory,
     date: tuple[int, int, int],
-) -> tuple[list[ExpenseHistory], float]:
+) -> tuple[list[tuple[str, float, int, int, int]], float]:
     expenses_before_date = [item for item in expenses if earlier(item[2:], date)]
     month_expenses = [
         item
@@ -219,12 +214,12 @@ def _get_month_expenses(
 def _print_month_result(month_income: float, month_expense: float) -> None:
     if month_income >= month_expense:
         print(
-            "В этом месяце прибыль составила "
+            "В этом месяце прибыль составила "  # noqa: RUF001
             f"{month_income - month_expense:.2f} рублей",
         )
     else:
         print(
-            "В этом месяце убыток составил "
+            "В этом месяце убыток составил "  # noqa: RUF001
             f"{month_expense - month_income:.2f} рублей",
         )
 
@@ -232,7 +227,9 @@ def _print_month_result(month_income: float, month_expense: float) -> None:
     print(f"Расходы: {month_expense:.2f} рублей")
 
 
-def _print_expense_details(list_month_expense: list[ExpenseHistory]) -> None:
+def _print_expense_details(
+    list_month_expense: list[tuple[str, float, int, int, int]],
+) -> None:
     print()
     print("Детализация (категория: сумма):")
 
