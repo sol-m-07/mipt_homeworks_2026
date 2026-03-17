@@ -31,8 +31,12 @@ DAYS_IN_MONTH = (
     31,
 )
 
-IncomeHistory = list[tuple[float, int, int, int]]
-ExpenseHistory = list[tuple[str, float, int, int, int]]
+Date = tuple[int, int, int]
+IncomeRecord = tuple[float, int, int, int]
+ExpenseRecord = tuple[str, float, int, int, int]
+
+IncomeHistory = list[IncomeRecord]
+ExpenseHistory = list[ExpenseRecord]
 
 
 def is_leap_year(year: int) -> bool:
@@ -43,7 +47,7 @@ def is_leap_year(year: int) -> bool:
     return year % 4 == 0
 
 
-def earlier(date1: tuple[int, int, int], date2: tuple[int, int, int]) -> bool:
+def earlier(date1: Date, date2: Date) -> bool:
     first = (date1[2], date1[1], date1[0])
     second = (date2[2], date2[1], date2[0])
     return first <= second
@@ -199,8 +203,8 @@ def _get_month_income(
 
 def _get_month_expenses(
     expenses: ExpenseHistory,
-    date: tuple[int, int, int],
-) -> tuple[list[tuple[str, float, int, int, int]], float]:
+    date: Date,
+) -> tuple[list[ExpenseRecord], float]:
     expenses_before_date = [item for item in expenses if earlier(item[2:], date)]
     month_expenses = [
         item
@@ -213,45 +217,30 @@ def _get_month_expenses(
 
 def _print_month_result(month_income: float, month_expense: float) -> None:
     if month_income >= month_expense:
-        print(
-            "В этом месяце прибыль составила "  # noqa: RUF001
-            f"{month_income - month_expense:.2f} рублей",
-        )
+        difference = month_income - month_expense
+        print(f"В этом месяце прибыль составила {difference:.2f} рублей")  # noqa: RUF001
     else:
-        print(
-            "В этом месяце убыток составил "  # noqa: RUF001
-            f"{month_expense - month_income:.2f} рублей",
-        )
+        difference = month_expense - month_income
+        print(f"В этом месяце убыток составил {difference:.2f} рублей")  # noqa: RUF001
 
     print(f"Доходы: {month_income:.2f} рублей")
     print(f"Расходы: {month_expense:.2f} рублей")
 
 
-def _print_expense_details(
-    list_month_expense: list[tuple[str, float, int, int, int]],
-) -> None:
+def _print_expense_details(expenses: list[ExpenseRecord]) -> None:
     print()
     print("Детализация (категория: сумма):")
 
-    if not list_month_expense:
+    if not expenses:
         return
 
-    list_month_expense.sort()
-    current_category = list_month_expense[0][1]
-    category_number = 1
+    totals: dict[str, float] = {}
+    for category, value, *_ in expenses:
+        previous = totals.get(category, 0.0)
+        totals[category] = previous + value
 
-    for index, expense in enumerate(list_month_expense[1:], start=1):
-        previous_expense = list_month_expense[index - 1]
-        if expense[0] == previous_expense[0]:
-            current_category += expense[1]
-            continue
-
-        print(f"{category_number}. {previous_expense[0]}: {round(current_category)}")
-        current_category = expense[1]
-        category_number += 1
-
-    last_category = list_month_expense[-1][0]
-    print(f"{category_number}. {last_category}: {round(current_category)}")
+    for number, (category, total) in enumerate(sorted(totals.items()), start=1):
+        print(f"{number}. {category}: {round(total)}")
 
 
 def stats_processing(command: list[str], incomes: IncomeHistory, expenses: ExpenseHistory) -> None:
