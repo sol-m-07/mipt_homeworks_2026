@@ -11,12 +11,6 @@ _FIRST_HALF_MDAYS = (31, 28, 31, 30, 31, 30)
 _SECOND_HALF_MDAYS = (31, 31, 30, 31, 30, 31)
 _MONTH_DAYS = _FIRST_HALF_MDAYS + _SECOND_HALF_MDAYS
 
-_AGG_INCOME_TOTAL = "ti"
-_AGG_EXPENSE_TOTAL = "te"
-_AGG_INCOME_MONTH = "mi"
-_AGG_EXPENSE_MONTH = "me"
-_AGG_DETAILS = "details"
-
 _FEBRUARY_MONTH = 2
 _FLOAT_ZERO = float(_FEBRUARY_MONTH - _FEBRUARY_MONTH)
 _MONTHS_PER_YEAR = 12
@@ -28,6 +22,7 @@ _COST_CATEGORIES_WORDS = 2
 _COST_PURCHASE_MIN_WORDS = 4
 _STATS_CMD_WORDS = 2
 
+type _DmyParts = tuple[object, object, object]
 type _StatsBodyBundle = tuple[float, str, float, float, float, dict[str, float]]
 
 
@@ -104,11 +99,17 @@ def _date_to_ymd(dmy: tuple[int, int, int]) -> tuple[int, int, int]:
     return (year, month, day)
 
 
-def _tuple_dmy_to_ymd(raw: tuple[object, object, object]) -> tuple[int, int, int]:
-    d = int(raw[0])
-    m = int(raw[1])
-    y = int(raw[2])
-    return (y, m, d)
+def _coerce_dmy_tuple_to_ymd(parts: _DmyParts) -> tuple[int, int, int] | None:
+    a, b, c = parts
+    if isinstance(a, int) and isinstance(b, int) and isinstance(c, int):
+        return (c, b, a)
+    if isinstance(a, str) and isinstance(b, str) and isinstance(c, str):
+        parsed_inner = _validated_ymd(a, b, c)
+        if parsed_inner is None:
+            return None
+        d_i, m_i, y_i = parsed_inner
+        return (y_i, m_i, d_i)
+    return None
 
 
 def _record_ymd(record: dict[str, object]) -> tuple[int, int, int] | None:
@@ -116,8 +117,10 @@ def _record_ymd(record: dict[str, object]) -> tuple[int, int, int] | None:
         return None
     raw = record["date"]
     if isinstance(raw, tuple) and len(raw) == _DATE_TUPLE_LEN:
-        triple = (raw[0], raw[1], raw[2])
-        return _tuple_dmy_to_ymd(triple)
+        first = raw[0]
+        second = raw[1]
+        third = raw[2]
+        return _coerce_dmy_tuple_to_ymd((first, second, third))
     if isinstance(raw, str):
         parsed = extract_date(raw)
         if parsed is None:
@@ -151,12 +154,13 @@ def _decimal_from_parts(whole: str, frac: str) -> float | None:
     if whole == "" and frac == "":
         return None
     if whole == "":
-        return int(frac) / (10 ** len(frac))
+        den = 10.0 ** len(frac)
+        return float(int(frac)) / den
     if frac == "":
         return float(int(whole))
     whole_val = float(int(whole))
     frac_len = len(frac)
-    frac_val = int(frac) / (10**frac_len)
+    frac_val = float(int(frac)) / (10.0**frac_len)
     return whole_val + frac_val
 
 
@@ -271,14 +275,15 @@ def cost_categories_handler() -> str:
     return "\n".join(pairs)
 
 
-def _new_agg() -> dict[str, float | dict[str, float]]:
-    return {
-        _AGG_INCOME_TOTAL: _FLOAT_ZERO,
-        _AGG_EXPENSE_TOTAL: _FLOAT_ZERO,
-        _AGG_INCOME_MONTH: _FLOAT_ZERO,
-        _AGG_EXPENSE_MONTH: _FLOAT_ZERO,
-        _AGG_DETAILS: {},
-    }
+class _AggState:
+    __slots__ = ("details", "expense_month", "expense_total", "income_month", "income_total")
+
+    def __init__(self) -> None:
+        self.income_total = _FLOAT_ZERO
+        self.expense_total = _FLOAT_ZERO
+        self.income_month = _FLOAT_ZERO
+        self.expense_month = _FLOAT_ZERO
+        self.details: dict[str, float] = {}
 
 
 def _process_record_for_agg(
@@ -286,34 +291,36 @@ def _process_record_for_agg(
     report_key: tuple[int, int, int],
     ry: int,
     rm: int,
-    agg: dict[str, float | dict[str, float]],
+    agg: _AggState,
 ) -> None:
     ymd = _record_ymd(rec)
     if ymd is None or ymd >= report_key:
         return
-    amount = float(rec["amount"])
+    raw_amt = rec["amount"]
+    if not isinstance(raw_amt, int | float):
+        return
+    amount = float(raw_amt)
     is_expense = "category" in rec
     if is_expense:
-        agg[_AGG_EXPENSE_TOTAL] += amount
+        agg.expense_total += amount
     else:
-        agg[_AGG_INCOME_TOTAL] += amount
+        agg.income_total += amount
     y, m, _ = ymd
     if y != ry or m != rm:
         return
     if is_expense:
-        agg[_AGG_EXPENSE_MONTH] += amount
+        agg.expense_month += amount
         label = expense_display_name(str(rec["category"]))
-        details = agg[_AGG_DETAILS]
-        details[label] = details.get(label, _FLOAT_ZERO) + amount
+        agg.details[label] = agg.details.get(label, _FLOAT_ZERO) + amount
     else:
-        agg[_AGG_INCOME_MONTH] += amount
+        agg.income_month += amount
 
 
 def _aggregate_stats(
     storage: list[dict[str, object]],
     report_key: tuple[int, int, int],
-) -> dict[str, float | dict[str, float]]:
-    agg = _new_agg()
+) -> _AggState:
+    agg = _AggState()
     ry, rm, _ = report_key
     for rec in storage:
         _process_record_for_agg(rec, report_key, ry, rm, agg)
@@ -368,16 +375,16 @@ def stats_handler(report_date: str) -> str:
         return INCORRECT_DATE_MSG
     report_key = _date_to_ymd(report_dmy)
     agg = _aggregate_stats(financial_transactions_storage, report_key)
-    capital = round(agg[_AGG_INCOME_TOTAL] - agg[_AGG_EXPENSE_TOTAL], 2)
-    flow_word, flow_amt = _monthly_flow(agg[_AGG_INCOME_MONTH], agg[_AGG_EXPENSE_MONTH])
+    capital = round(agg.income_total - agg.expense_total, 2)
+    flow_word, flow_amt = _monthly_flow(agg.income_month, agg.expense_month)
     body = _StatsBody(
         (
             capital,
             flow_word,
             flow_amt,
-            round(agg[_AGG_INCOME_MONTH], 2),
-            round(agg[_AGG_EXPENSE_MONTH], 2),
-            agg[_AGG_DETAILS],
+            round(agg.income_month, 2),
+            round(agg.expense_month, 2),
+            agg.details,
         ),
     )
     return "\n".join(_build_stats_lines(report_date, body))
