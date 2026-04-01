@@ -80,7 +80,8 @@ class LFUPolicy(Policy[K]):
         if len(self._key_counter) <= self.capacity:
             return None
         candidates = dict(self._key_counter)
-        candidates.pop(self._last_new_key, None)
+        if self._last_new_key is not None:
+            candidates.pop(self._last_new_key, None)
         if not candidates:
             return None
         return min(candidates, key=candidates.get)  # type: ignore[arg-type]
