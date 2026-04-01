@@ -84,7 +84,11 @@ class LFUPolicy(Policy[K]):
             candidates.pop(self._last_new_key, None)
         if not candidates:
             return None
-        return min(candidates, key=candidates.get)  # type: ignore[arg-type]
+        min_count = min(candidates.values())
+        for candidate_key, count in candidates.items():
+            if count == min_count:
+                return candidate_key
+        return None
 
     def remove_key(self, key: K) -> None:
         self._key_counter.pop(key, None)
@@ -134,12 +138,17 @@ class CachedProperty[V]:
     def __init__(self, func: Callable[..., V]) -> None:
         self._func = func
 
-    def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V:
+    def __get__(
+        self,
+        instance: HasCache[Any, Any] | None,
+        owner: type,
+    ) -> "V | CachedProperty[V]":
         if instance is None:
-            return self  # type: ignore[return-value]
+            return self
         key = self._func.__name__
-        if instance.cache.exists(key):
-            return instance.cache.get(key)  # type: ignore[return-value]
+        cached = instance.cache.get(key)
+        if cached is not None:
+            return cached
         result = self._func(instance)
         instance.cache.set(key, result)
         return result
