@@ -140,7 +140,7 @@ class CachedProperty[V]:
 
     def __get__(
         self,
-        instance: HasCache[Any, Any] | None,
+        instance: HasCache[Any, V] | None,
         owner: type,
     ) -> "V | CachedProperty[V]":
         if instance is None:
