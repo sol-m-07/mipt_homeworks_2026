@@ -79,7 +79,8 @@ class LFUPolicy(Policy[K]):
     def get_key_to_evict(self) -> K | None:
         if len(self._key_counter) <= self.capacity:
             return None
-        candidates = {k: v for k, v in self._key_counter.items() if k != self._last_new_key}
+        candidates = dict(self._key_counter)
+        candidates.pop(self._last_new_key, None)
         if not candidates:
             return None
         return min(candidates, key=candidates.get)  # type: ignore[arg-type]
@@ -132,7 +133,7 @@ class CachedProperty[V]:
     def __init__(self, func: Callable[..., V]) -> None:
         self._func = func
 
-    def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V:  # type: ignore[return-value]
+    def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V:
         if instance is None:
             return self  # type: ignore[return-value]
         key = self._func.__name__
