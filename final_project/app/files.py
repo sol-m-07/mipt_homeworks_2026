@@ -1,3 +1,4 @@
+import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,7 +65,7 @@ def parse_file_chunk_args(arg_line: str) -> ChunkOptions:
 def _split_by_length(text: str, step: int) -> list[str]:
     chunks: list[str] = []
     for index in range(0, len(text), step):
-        piece = text[index : index + step]
+        piece = ''.join(itertools.islice(text, index, index + step))
         if piece:
             chunks.append(piece)
     return chunks
@@ -77,7 +78,8 @@ def _split_by_paragraphs(text: str, count: int) -> list[str]:
     chunks: list[str] = []
     for index in range(0, len(paragraphs), count):
         end = index + count
-        chunks.append('\n'.join(paragraphs[index:end]))
+        batch = itertools.islice(paragraphs, index, end)
+        chunks.append('\n'.join(batch))
     return chunks
 
 

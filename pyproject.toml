@@ -28,6 +28,11 @@ strict = true
 warn_return_any = true
 warn_unused_ignores = true
 exclude = [".*\\.ipynb"]
+mypy_path = "final_project"
+
+[tool.pyright]
+include = ["final_project"]
+executionEnvironments = [{ root = "final_project" }]
 
 [tool.ty.src]
 include = ["**/*.py"]

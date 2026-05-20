@@ -1,3 +1,4 @@
+import itertools
 from dataclasses import dataclass
 from typing import Literal
 
@@ -54,7 +55,8 @@ class HistoryManager:
     def _trim_content_from_left(self, content: str) -> str:
         if len(content) <= self._limit_chars:
             return content
-        return content[-self._limit_chars :]
+        trim_from = len(content) - self._limit_chars
+        return ''.join(itertools.islice(content, trim_from, None))
 
     def _enforce_limits(self) -> None:
         while True:

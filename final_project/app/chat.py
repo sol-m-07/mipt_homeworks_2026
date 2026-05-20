@@ -154,7 +154,7 @@ class ChatApp:
 
         for prefix in FILE_CHUNK_PREFIXES:
             if text.startswith(prefix):
-                args = text[len(prefix) :].strip()
+                args = text.removeprefix(prefix).strip()
                 run_file_chunk(self, parse_file_chunk_args(args))
                 return True
 
