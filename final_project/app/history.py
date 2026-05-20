@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
 
 Role = Literal['user', 'assistant']
 
@@ -24,13 +30,35 @@ class HistoryManager:
         if self._messages:
             self._messages.pop()
 
-    def _total_chars(self) -> int:
-        return sum(len(msg.content) for msg in self._messages)
+    def add(self, role: Role, content: str) -> None:
+        trimmed = self._trim_content_from_left(content)
+        self._messages.append(Message(role=role, content=trimmed))
+        self._enforce_limits()
+
+    def to_api_format(self, system_prompt: str | None) -> list[ChatCompletionMessageParam]:
+        result: list[ChatCompletionMessageParam] = []
+        if system_prompt:
+            result.append(
+                ChatCompletionSystemMessageParam(role='system', content=system_prompt)
+            )
+        for msg in self._messages:
+            if msg.role == 'user':
+                result.append(
+                    ChatCompletionUserMessageParam(role='user', content=msg.content)
+                )
+            else:
+                result.append(
+                    ChatCompletionAssistantMessageParam(
+                        role='assistant',
+                        content=msg.content,
+                    )
+                )
+        return result
 
     def _trim_content_from_left(self, content: str) -> str:
         if len(content) <= self._limit_chars:
             return content
-        return content[-self._limit_chars :]
+        return content[-self._limit_chars:]
 
     def _enforce_limits(self) -> None:
         while True:
@@ -38,21 +66,9 @@ class HistoryManager:
             if len(self._messages) > self._limit_message:
                 self._messages.pop(0)
                 changed = True
-            if self._total_chars() > self._limit_chars and self._messages:
+            total_chars = sum(len(msg.content) for msg in self._messages)
+            if total_chars > self._limit_chars and self._messages:
                 self._messages.pop(0)
                 changed = True
             if not changed:
                 break
-
-    def add(self, role: Role, content: str) -> None:
-        trimmed = self._trim_content_from_left(content)
-        self._messages.append(Message(role=role, content=trimmed))
-        self._enforce_limits()
-
-    def to_api_format(self, system_prompt: str | None) -> list[dict[str, str]]:
-        result: list[dict[str, str]] = []
-        if system_prompt:
-            result.append({'role': 'system', 'content': system_prompt})
-        for msg in self._messages:
-            result.append({'role': msg.role, 'content': msg.content})
-        return result

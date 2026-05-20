@@ -75,6 +75,27 @@ def _parse_float(value: str | float | None, name: str) -> float | None:
     return float(str(value).strip())
 
 
+def _missing_required_fields(
+    api_key: object,
+    api_host: object,
+    limit_message: int | None,
+    limit_chars: int | None,
+    temperature: float | None,
+) -> list[str]:
+    missing: list[str] = []
+    if not api_key:
+        missing.append('api_key / API_KEY')
+    if not api_host:
+        missing.append('api_host / API_HOST')
+    if limit_message is None:
+        missing.append('limit_message / LIMIT_MESSAGE')
+    if limit_chars is None:
+        missing.append('limit_chars / LIMIT_CHARS')
+    if temperature is None:
+        missing.append('temperature / TEMPERATURE')
+    return missing
+
+
 def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     api_key = os.environ.get(ENV_API_KEY) or yaml_data.get('api_key')
     api_host = os.environ.get(ENV_API_HOST) or yaml_data.get('api_host')
@@ -95,27 +116,21 @@ def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     if system_prompt is not None:
         system_prompt = str(system_prompt)
 
-    missing: list[str] = []
-    if not api_key:
-        missing.append('api_key / API_KEY')
-    if not api_host:
-        missing.append('api_host / API_HOST')
-    if limit_message is None:
-        missing.append('limit_message / LIMIT_MESSAGE')
-    if limit_chars is None:
-        missing.append('limit_chars / LIMIT_CHARS')
-    if temperature is None:
-        missing.append('temperature / TEMPERATURE')
-
+    missing = _missing_required_fields(
+        api_key, api_host, limit_message, limit_chars, temperature
+    )
     if missing:
         print(
-            'Не заданы обязательные параметры конфигурации:\n'
+            '?? ?????? ???????????? ????????? ????????????:\n'
             + '\n'.join(f'  - {item}' for item in missing)
         )
         sys.exit(1)
 
+    if limit_message is None or limit_chars is None or temperature is None:
+        sys.exit(1)
+
     if not 0 <= temperature <= 1:
-        print('temperature должна быть в диапазоне от 0 до 1.')
+        print('temperature ?????? ???? ? ????????? ?? 0 ?? 1.')
         sys.exit(1)
 
     return AppConfig(
@@ -140,9 +155,9 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     if not has_yaml and not has_env:
         print(
-            'Конфигурация не найдена.\n'
-            'Создайте config/config.yaml (см. config/config.yaml.example) '
-            'или задайте переменные окружения.'
+            '???????????? ?? ???????.\n'
+            '???????? config/config.yaml (??. config/config.yaml.example) '
+            '??? ??????? ?????????? ?????????.'
         )
         sys.exit(1)
 

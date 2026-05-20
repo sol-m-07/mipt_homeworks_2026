@@ -16,9 +16,105 @@ from app.files import (
 from app.history import HistoryManager
 from app.llm_client import LLMClient
 
-EXIT_COMMAND = '\\q'
+EXIT_COMMAND = r'\q'
 RESET_COMMAND = '/reset'
 FILE_CHUNK_PREFIXES = ('/file_chunk', '/filechunk')
+WELCOME_MESSAGE = r'Чат с ИИ-ассистентом. Команды: /reset, /file_chunk, \q — выход.'
+FILE_READ_ERRORS = (FileNotFoundError, ValueError, OSError)
+
+
+def _report_file_error(error: Exception) -> None:
+    print_error(str(error))
+
+
+def _read_file_safe(path: str) -> str | None:
+    try:
+        return read_text_file(path)
+    except FILE_READ_ERRORS as error:
+        _report_file_error(error)
+        return None
+
+
+def _expand_refs_safe(text: str) -> str | None:
+    try:
+        return expand_file_references(text)
+    except FILE_READ_ERRORS as error:
+        _report_file_error(error)
+        return None
+
+
+def _read_file_chunk_inputs() -> tuple[str, str] | None:
+    path_input = prompt_line('Введите путь до файла')
+    if path_input == EXIT_COMMAND:
+        return None
+
+    user_prompt = prompt_line(
+        'Принято. Что нужно сделать для каждого фрагмента (User Prompt)?'
+    )
+    if user_prompt == EXIT_COMMAND:
+        return None
+
+    return path_input, user_prompt
+
+
+def _process_single_chunk(app: 'ChatApp', user_prompt: str, chunk: str) -> bool:
+    try:
+        response = app._client.send_chunk(user_prompt, chunk)
+    except KeyboardInterrupt:
+        print_system('Обработка прервана.')
+        return False
+    except Exception as error:
+        print_error(f'Ошибка при обращении к LLM: {error}')
+        return False
+
+    print_assistant(response)
+    return True
+
+
+def _advance_file_chunk(index: int, total: int, options: ChunkOptions) -> bool:
+    if options.auto_advance or index == total - 1:
+        return True
+
+    while True:
+        step = prompt_line()
+        if step == EXIT_COMMAND:
+            return False
+        if step == '':
+            return True
+
+
+def _process_file_chunks(
+    app: 'ChatApp',
+    user_prompt: str,
+    chunks: list[str],
+    options: ChunkOptions,
+) -> None:
+    print_system('Принято. Начинаю обработку:')
+    for index, chunk in enumerate(chunks):
+        if not _process_single_chunk(app, user_prompt, chunk):
+            return
+        if not _advance_file_chunk(index, len(chunks), options):
+            return
+
+    print_system('Обработка файла завершена.')
+
+
+def run_file_chunk(app: 'ChatApp', options: ChunkOptions) -> None:
+    inputs = _read_file_chunk_inputs()
+    if inputs is None:
+        return
+
+    path_input, user_prompt = inputs
+    file_text = _read_file_safe(path_input)
+    if file_text is None:
+        return
+
+    chunks = split_into_chunks(file_text, options)
+    if not chunks:
+        print_error('Файл пуст или не удалось разбить на фрагменты.')
+        return
+
+    _process_file_chunks(app, user_prompt, chunks, options)
 
 
 class ChatApp:
@@ -35,16 +131,21 @@ class ChatApp:
         self._client = client or LLMClient(self._config)
 
     def run(self) -> None:
-        print_system('Чат с ИИ-ассистентом. Команды: /reset, /file_chunk, \\q — выход.')
+        print_system(WELCOME_MESSAGE)
         while True:
             user_input = prompt_line()
-            if not user_input:
-                continue
-            if user_input == EXIT_COMMAND:
+            if self._handle_input(user_input):
                 break
-            if self._handle_command(user_input):
-                continue
-            self._process_chat_message(user_input)
+
+    def _handle_input(self, user_input: str) -> bool:
+        if not user_input:
+            return False
+        if user_input == EXIT_COMMAND:
+            return True
+        if self._handle_command(user_input):
+            return False
+        self._process_chat_message(user_input)
+        return False
 
     def _handle_command(self, text: str) -> bool:
         if text == RESET_COMMAND:
@@ -55,76 +156,36 @@ class ChatApp:
 
         for prefix in FILE_CHUNK_PREFIXES:
             if text.startswith(prefix):
-                args = text[len(prefix) :].strip()
-                self._run_file_chunk(parse_file_chunk_args(args))
+                args = text[len(prefix):].strip()
+                run_file_chunk(self, parse_file_chunk_args(args))
                 return True
 
         return False
 
     def _process_chat_message(self, user_input: str) -> None:
-        try:
-            message_text = expand_file_references(user_input)
-        except (FileNotFoundError, ValueError, OSError) as error:
-            print_error(str(error))
+        message_text = _expand_refs_safe(user_input)
+        if message_text is None:
             return
 
         self._history.add('user', message_text)
-        api_messages = self._history.to_api_format(self._config.system_prompt)
-
-        try:
-            response = self._client.send(api_messages)
-            print_assistant(response)
-        except KeyboardInterrupt:
-            self._history.remove_last()
-            print_system('Запрос прерван. Введите новое сообщение.')
-            return
-        except Exception as error:
-            self._history.remove_last()
-            print_error(f'Ошибка при обращении к LLM: {error}')
+        response = self._fetch_chat_response()
+        if response is None:
             return
 
         self._history.add('assistant', response)
 
-    def _run_file_chunk(self, options: ChunkOptions) -> None:
-        path_input = prompt_line('Введите путь до файла')
-        if path_input == EXIT_COMMAND:
-            return
-
-        user_prompt = prompt_line('Принято. Что нужно сделать для каждого фрагмента (User Prompt)?')
-        if user_prompt == EXIT_COMMAND:
-            return
-
+    def _fetch_chat_response(self) -> str | None:
+        api_messages = self._history.to_api_format(self._config.system_prompt)
         try:
-            file_text = read_text_file(path_input)
-        except (FileNotFoundError, ValueError, OSError) as error:
-            print_error(str(error))
-            return
+            response = self._client.send(api_messages)
+        except KeyboardInterrupt:
+            self._history.remove_last()
+            print_system('Запрос прерван. Введите новое сообщение.')
+            return None
+        except Exception as error:
+            self._history.remove_last()
+            print_error(f'Ошибка при обращении к LLM: {error}')
+            return None
 
-        chunks = split_into_chunks(file_text, options)
-        if not chunks:
-            print_error('Файл пуст или не удалось разбить на фрагменты.')
-            return
-
-        print_system('Принято. Начинаю обработку:')
-        for index, chunk in enumerate(chunks):
-            try:
-                response = self._client.send_chunk(user_prompt, chunk)
-                print_assistant(response)
-            except KeyboardInterrupt:
-                print_system('Обработка прервана.')
-                return
-            except Exception as error:
-                print_error(f'Ошибка при обращении к LLM: {error}')
-                return
-
-            if options.auto_advance or index == len(chunks) - 1:
-                continue
-
-            while True:
-                step = prompt_line()
-                if step == EXIT_COMMAND:
-                    return
-                if step == '':
-                    break
-
-        print_system('Обработка файла завершена.')
+        print_assistant(response)
+        return response

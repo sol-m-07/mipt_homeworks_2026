@@ -4,11 +4,13 @@ from pathlib import Path
 
 MAX_FILE_SIZE = 5 * 1024 * 1024
 FILE_REF_PATTERN = re.compile(r'@::(.+?)::')
+MODE_PARAGRAPH = 'paragraph'
+MODE_LEN = 'len'
 
 
 @dataclass
 class ChunkOptions:
-    mode: str = 'paragraph'
+    mode: str = MODE_PARAGRAPH
     paragraph_count: int = 1
     char_len: int = 150
     auto_advance: bool = False
@@ -31,37 +33,55 @@ def expand_file_references(text: str) -> str:
     return FILE_REF_PATTERN.sub(replace, text)
 
 
+def _parse_int_option(part: str) -> int:
+    _, value = part.split('=', 1)
+    return max(1, int(value))
+
+
+def _apply_chunk_flag(options: ChunkOptions, part: str) -> None:
+    if part == '-y':
+        options.auto_advance = True
+        return
+    if part.startswith('paragraph='):
+        options.mode = MODE_PARAGRAPH
+        options.paragraph_count = _parse_int_option(part)
+        return
+    if part in {MODE_PARAGRAPH, '/filechunk'}:
+        options.mode = MODE_PARAGRAPH
+        return
+    if part.startswith('len='):
+        options.mode = MODE_LEN
+        options.char_len = _parse_int_option(part)
+
+
 def parse_file_chunk_args(arg_line: str) -> ChunkOptions:
     options = ChunkOptions()
     for part in arg_line.split():
-        if part == '-y':
-            options.auto_advance = True
-        elif part.startswith('paragraph='):
-            options.mode = 'paragraph'
-            options.paragraph_count = max(1, int(part.split('=', 1)[1]))
-        elif part == 'paragraph' or part == '/filechunk':
-            options.mode = 'paragraph'
-        elif part.startswith('len='):
-            options.mode = 'len'
-            options.char_len = max(1, int(part.split('=', 1)[1]))
+        _apply_chunk_flag(options, part)
     return options
 
 
-def split_into_chunks(text: str, options: ChunkOptions) -> list[str]:
-    if options.mode == 'len':
-        chunks: list[str] = []
-        step = options.char_len
-        for index in range(0, len(text), step):
-            piece = text[index : index + step]
-            if piece:
-                chunks.append(piece)
-        return chunks
+def _split_by_length(text: str, step: int) -> list[str]:
+    chunks: list[str] = []
+    for index in range(0, len(text), step):
+        piece = text[index:index + step]
+        if piece:
+            chunks.append(piece)
+    return chunks
 
+
+def _split_by_paragraphs(text: str, count: int) -> list[str]:
     paragraphs = [line for line in text.splitlines() if line.strip()]
     if not paragraphs:
         return []
-    count = options.paragraph_count
-    chunks = []
+    chunks: list[str] = []
     for index in range(0, len(paragraphs), count):
-        chunks.append('\n'.join(paragraphs[index : index + count]))
+        end = index + count
+        chunks.append('\n'.join(paragraphs[index:end]))
     return chunks
+
+
+def split_into_chunks(text: str, options: ChunkOptions) -> list[str]:
+    if options.mode == MODE_LEN:
+        return _split_by_length(text, options.char_len)
+    return _split_by_paragraphs(text, options.paragraph_count)
