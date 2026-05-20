@@ -116,9 +116,7 @@ def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     if system_prompt is not None:
         system_prompt = str(system_prompt)
 
-    missing = _missing_required_fields(
-        api_key, api_host, limit_message, limit_chars, temperature
-    )
+    missing = _missing_required_fields(api_key, api_host, limit_message, limit_chars, temperature)
     if missing:
         print(
             '?? ?????? ???????????? ????????? ????????????:\n'

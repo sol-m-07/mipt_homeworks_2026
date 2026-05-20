@@ -64,7 +64,7 @@ def parse_file_chunk_args(arg_line: str) -> ChunkOptions:
 def _split_by_length(text: str, step: int) -> list[str]:
     chunks: list[str] = []
     for index in range(0, len(text), step):
-        piece = text[index:index + step]
+        piece = text[index : index + step]
         if piece:
             chunks.append(piece)
     return chunks

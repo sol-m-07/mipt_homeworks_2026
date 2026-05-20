@@ -48,9 +48,7 @@ def _read_file_chunk_inputs() -> tuple[str, str] | None:
     if path_input == EXIT_COMMAND:
         return None
 
-    user_prompt = prompt_line(
-        'Принято. Что нужно сделать для каждого фрагмента (User Prompt)?'
-    )
+    user_prompt = prompt_line('Принято. Что нужно сделать для каждого фрагмента (User Prompt)?')
     if user_prompt == EXIT_COMMAND:
         return None
 
@@ -156,7 +154,7 @@ class ChatApp:
 
         for prefix in FILE_CHUNK_PREFIXES:
             if text.startswith(prefix):
-                args = text[len(prefix):].strip()
+                args = text[len(prefix) :].strip()
                 run_file_chunk(self, parse_file_chunk_args(args))
                 return True
 

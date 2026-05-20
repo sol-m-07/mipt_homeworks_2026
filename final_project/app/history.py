@@ -38,14 +38,10 @@ class HistoryManager:
     def to_api_format(self, system_prompt: str | None) -> list[ChatCompletionMessageParam]:
         result: list[ChatCompletionMessageParam] = []
         if system_prompt:
-            result.append(
-                ChatCompletionSystemMessageParam(role='system', content=system_prompt)
-            )
+            result.append(ChatCompletionSystemMessageParam(role='system', content=system_prompt))
         for msg in self._messages:
             if msg.role == 'user':
-                result.append(
-                    ChatCompletionUserMessageParam(role='user', content=msg.content)
-                )
+                result.append(ChatCompletionUserMessageParam(role='user', content=msg.content))
             else:
                 result.append(
                     ChatCompletionAssistantMessageParam(
@@ -58,7 +54,7 @@ class HistoryManager:
     def _trim_content_from_left(self, content: str) -> str:
         if len(content) <= self._limit_chars:
             return content
-        return content[-self._limit_chars:]
+        return content[-self._limit_chars :]
 
     def _enforce_limits(self) -> None:
         while True:

@@ -40,7 +40,5 @@ class LLMClient:
                     content=self._config.system_prompt,
                 )
             )
-        messages.append(
-            ChatCompletionUserMessageParam(role='user', content=user_content)
-        )
+        messages.append(ChatCompletionUserMessageParam(role='user', content=user_content))
         return messages
