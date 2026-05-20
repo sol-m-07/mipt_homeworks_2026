@@ -38,6 +38,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+!final_project/htmlcov/
 .tox/
 .nox/
 .coverage
@@ -212,3 +213,8 @@ __marimo__/
 
 # MacOS
 .DS_Store
+
+# Final project secrets
+final_project/config.yaml
+final_project/config/config.yaml
+config.yaml
