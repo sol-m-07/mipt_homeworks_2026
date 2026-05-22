@@ -96,26 +96,13 @@ def _missing_required_fields(
     return missing
 
 
-def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
-    api_key = os.environ.get(ENV_API_KEY) or yaml_data.get('api_key')
-    api_host = os.environ.get(ENV_API_HOST) or yaml_data.get('api_host')
-    limit_message = _parse_int(
-        os.environ.get(ENV_LIMIT_MESSAGE) or yaml_data.get('limit_message'),
-        ENV_LIMIT_MESSAGE,
-    )
-    limit_chars = _parse_int(
-        os.environ.get(ENV_LIMIT_CHARS) or yaml_data.get('limit_chars'),
-        ENV_LIMIT_CHARS,
-    )
-    temperature = _parse_float(
-        os.environ.get(ENV_TEMPERATURE) or yaml_data.get('temperature'),
-        ENV_TEMPERATURE,
-    )
-    model = os.environ.get(ENV_MODEL) or yaml_data.get('model') or 'gpt-3.5-turbo'
-    system_prompt = yaml_data.get('system_prompt')
-    if system_prompt is not None:
-        system_prompt = str(system_prompt)
-
+def _validate_parsed_config(
+    api_key: object,
+    api_host: object,
+    limit_message: int | None,
+    limit_chars: int | None,
+    temperature: float | None,
+) -> tuple[int, int, float]:
     missing = _missing_required_fields(api_key, api_host, limit_message, limit_chars, temperature)
     if missing:
         print(
@@ -138,6 +125,33 @@ def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     if not 0 <= temperature <= 1:
         print('temperature must be between 0 and 1.')
         sys.exit(1)
+
+    return limit_message, limit_chars, temperature
+
+
+def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
+    api_key = os.environ.get(ENV_API_KEY) or yaml_data.get('api_key')
+    api_host = os.environ.get(ENV_API_HOST) or yaml_data.get('api_host')
+    limit_message = _parse_int(
+        os.environ.get(ENV_LIMIT_MESSAGE) or yaml_data.get('limit_message'),
+        ENV_LIMIT_MESSAGE,
+    )
+    limit_chars = _parse_int(
+        os.environ.get(ENV_LIMIT_CHARS) or yaml_data.get('limit_chars'),
+        ENV_LIMIT_CHARS,
+    )
+    temperature = _parse_float(
+        os.environ.get(ENV_TEMPERATURE) or yaml_data.get('temperature'),
+        ENV_TEMPERATURE,
+    )
+    model = os.environ.get(ENV_MODEL) or yaml_data.get('model') or 'gpt-3.5-turbo'
+    system_prompt = yaml_data.get('system_prompt')
+    if system_prompt is not None:
+        system_prompt = str(system_prompt)
+
+    limit_message, limit_chars, temperature = _validate_parsed_config(
+        api_key, api_host, limit_message, limit_chars, temperature
+    )
 
     return AppConfig(
         api_key=str(api_key),
