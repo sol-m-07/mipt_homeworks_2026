@@ -119,7 +119,7 @@ def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     missing = _missing_required_fields(api_key, api_host, limit_message, limit_chars, temperature)
     if missing:
         print(
-            '?? ?????? ???????????? ????????? ????????????:\n'
+            'Required configuration parameters are not set:\n'
             + '\n'.join(f'  - {item}' for item in missing)
         )
         sys.exit(1)
@@ -127,8 +127,16 @@ def _merge_config(yaml_data: dict[str, Any]) -> AppConfig:
     if limit_message is None or limit_chars is None or temperature is None:
         sys.exit(1)
 
+    if limit_message <= 0:
+        print('limit_message must be a positive integer.')
+        sys.exit(1)
+
+    if limit_chars <= 0:
+        print('limit_chars must be a positive integer.')
+        sys.exit(1)
+
     if not 0 <= temperature <= 1:
-        print('temperature ?????? ???? ? ????????? ?? 0 ?? 1.')
+        print('temperature must be between 0 and 1.')
         sys.exit(1)
 
     return AppConfig(
@@ -153,9 +161,9 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     if not has_yaml and not has_env:
         print(
-            '???????????? ?? ???????.\n'
-            '???????? config/config.yaml (??. config/config.yaml.example) '
-            '??? ??????? ?????????? ?????????.'
+            'Configuration not found.\n'
+            'Create config/config.yaml (see config/config.yaml.example) '
+            'or set the required environment variables.'
         )
         sys.exit(1)
 
